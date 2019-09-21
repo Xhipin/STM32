@@ -45,22 +45,19 @@
 #define CDC_OUT_EP                                  0x01U  /* EP1 for data OUT */
 #define CDC_CMD_EP                                  0x82U  /* EP2 for CDC commands */
 
-//CDC1
-#define CDC1_INTR_TX                                CDC_CMD_EP  /* EP1 for data IN */
-#define CDC1_BLK_RX                                 CDC_OUT_EP  /* EP1 for data OUT */
-#define CDC1_BLK_TX                                  CDC_IN_EP  /* EP2 for CDC commands */
+#define CDC1_BLK_TX									CDC_IN_EP
+#define CDC1_BLK_RX									CDC_OUT_EP
+#define CDC1_INTR_TX								CDC_CMD_EP
 
-//CDC2
-#define CDC2_INTR_TX                                0x84U  /* EP1 for data IN */
-#define CDC2_BLK_RX                                 0x03U  /* EP1 for data OUT */
-#define CDC2_BLK_TX                                 0x83U /* EP2 for CDC commands */
+#define CDC2_BLK_TX									0x83U
+#define CDC2_BLK_RX									0x03U
+#define CDC2_INTR_TX									0x84U
 
- //CDC3
- #define CDC3_INTR_TX                                0x86U  /* EP1 for data IN */
- #define CDC3_BLK_RX                                 0x05U  /* EP1 for data OUT */
- #define CDC3_BLK_TX                                 0x85U
+#define CDC3_BLK_TX									0x85U
+#define CDC3_BLK_RX									0x05U
+#define CDC3_INTR_TX									0x86U
 
- #ifndef CDC_HS_BINTERVAL
+#ifndef CDC_HS_BINTERVAL
   #define CDC_HS_BINTERVAL                          0x10U
 #endif /* CDC_HS_BINTERVAL */
 
