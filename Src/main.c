@@ -22,8 +22,7 @@
 #include "main.h"
 #include "usb_device.h"
 #include "usbd_cdc.h"
-#include "usbd_cdc_if.h"
-#include "stm32l4xx_hal_pcd.h"
+#include "stm32l4xx_hal_uart.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -60,7 +59,17 @@ static void MX_USART2_UART_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART3_UART_Init(void);
 void EndpointActivate(USBD_HandleTypeDef* pusb);
-uint8_t  USBD_CDC_TransmitPacket_EP(USBD_HandleTypeDef *pdev,uint8_t inep);
+uint8_t  USBD_CDC_TransmitPacket_EP(USBD_HandleTypeDef *pdev,uint8_t epaddr);
+uint8_t  USBD_CDC_ReceivePacket_EP(USBD_HandleTypeDef *pdev,uint8_t epaddr);
+void USBD_CDC_Receive(USBD_HandleTypeDef* pusb, uint8_t* ptr, uint8_t epaddr);
+void USBD_CDC_Transmit(USBD_HandleTypeDef* pusb, uint8_t* ptr,uint8_t length, uint8_t epaddr);
+uint8_t CDC1[64];
+ uint8_t CDC2[64];
+
+ uint8_t usart1[64]="USART2";
+ uint8_t usart3[64];
+
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -103,11 +112,15 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART3_UART_Init();
   MX_USB_DEVICE_Init();
+
   EndpointActivate(&hUsbDeviceFS);
   /* USER CODE BEGIN 2 */
-uint8_t CDC1[64]="CDC1";
-uint8_t CDC2[64]="CDC2";
-uint8_t CDC3[64]="CDC3";
+
+
+//TODO: UART IT HANDLING
+//TODO: USB DEVICE IT HANDLING
+//TODO: USB DEVICE COM PORT 12
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -115,16 +128,34 @@ uint8_t CDC3[64]="CDC3";
   while (1)
   {
     /* USER CODE END WHILE */
-
     /* USER CODE BEGIN 3 */
-	  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, CDC1, sizeof(CDC1));
-	  USBD_CDC_TransmitPacket_EP(&hUsbDeviceFS, CDC1_BLK_TX);
 
-	/*  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, CDC2, sizeof(CDC2));
-		  USBD_CDC_TransmitPacket_EP(&hUsbDeviceFS, CDC2_BLK_TX);
+	  //CDC1-USART1
+	  //CDC2-USART3
+	  HAL_UART_Transmit(&huart2, usart2, sizeof(usart2), 1000);
+	  HAL_UART_IRQHandler(&huart3);
+	  HAL_UART_IRQHandler(&huart1);
+	  /*Reception from PC*/
+	 USBD_CDC_Receive(&hUsbDeviceFS, CDC1, CDC1_BLK_RX);
+	  //USBD_CDC_Receive(&hUsbDeviceFS,CDC2,CDC2_BLK_RX);
+	  //Do not receive from or transmit to CDC2 until COM PORT 12 can be configured by putty
 
-		  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, CDC3, sizeof(CDC3));
-				  USBD_CDC_TransmitPacket_EP(&hUsbDeviceFS, CDC3_BLK_TX);*/
+	  /*Transmit Received PC Data*/
+	  HAL_UART_Transmit_IT(&huart1, CDC1,sizeof(CDC1));
+
+	  //HAL_UART_Transmit_IT(&huart3, CDC2, sizeof(CDC2));
+	  __HAL_UART_DISABLE_IT(&huart1,UART_IT_RXNE);
+	  /*Reception from UART*/
+	 HAL_UART_Receive_IT(&huart1, usart1, sizeof(usart1));
+
+	 //HAL_UART_Receive_IT(&huart3, usart3, sizeof(usart3));
+
+	  /*Transmit Received Serial Data to PC*/
+
+	  USBD_CDC_Transmit(&hUsbDeviceFS, usart1,sizeof(usart1), CDC1_BLK_TX);
+	  //USBD_CDC_Transmit(&hUsbDeviceFS, usart3,sizeof(usart3),CDC2_BLK_TX);
+
+CDC_Transmit_FS(Buf, Len)
   }
   /* USER CODE END 3 */
 }
@@ -355,15 +386,11 @@ USBD_LL_OpenEP(pusb, CDC2_INTR_TX, EP_TYPE_INTR, USB_MAX_EP0_SIZE);
 USBD_LL_OpenEP(pusb, CDC2_BLK_TX, EP_TYPE_BULK, USB_MAX_EP0_SIZE);
 USBD_LL_OpenEP(pusb, CDC2_BLK_RX, EP_TYPE_BULK, USB_MAX_EP0_SIZE);
 
-//CDC3
-USBD_LL_OpenEP(pusb, CDC3_INTR_TX, EP_TYPE_INTR, USB_MAX_EP0_SIZE);
-USBD_LL_OpenEP(pusb, CDC3_BLK_TX, EP_TYPE_BULK, USB_MAX_EP0_SIZE);
-USBD_LL_OpenEP(pusb, CDC3_BLK_RX, EP_TYPE_BULK, USB_MAX_EP0_SIZE);
-
 USBD_LL_Init(pusb);
-USBD_LL_Start(pusb);
+	USBD_LL_Start(pusb);
 }
-uint8_t  USBD_CDC_TransmitPacket_EP(USBD_HandleTypeDef *pdev,uint8_t inep)
+
+uint8_t  USBD_CDC_TransmitPacket_EP(USBD_HandleTypeDef *pdev,uint8_t epaddr)
 {
   USBD_CDC_HandleTypeDef   *hcdc = (USBD_CDC_HandleTypeDef*) pdev->pClassData;
 
@@ -375,10 +402,10 @@ uint8_t  USBD_CDC_TransmitPacket_EP(USBD_HandleTypeDef *pdev,uint8_t inep)
       hcdc->TxState = 1U;
 
       /* Update the packet total length */
-      pdev->ep_in[inep & 0xFU].total_length = hcdc->TxLength;
+      pdev->ep_in[epaddr & 0xFU].total_length = hcdc->TxLength;
 
       /* Transmit next packet */
-      USBD_LL_Transmit(pdev, inep, hcdc->TxBuffer,
+      USBD_LL_Transmit(pdev, epaddr, hcdc->TxBuffer,
                        (uint16_t)hcdc->TxLength);
 
       return USBD_OK;
@@ -392,6 +419,56 @@ uint8_t  USBD_CDC_TransmitPacket_EP(USBD_HandleTypeDef *pdev,uint8_t inep)
   {
     return USBD_FAIL;
   }
+}
+
+uint8_t  USBD_CDC_ReceivePacket_EP(USBD_HandleTypeDef *pdev,uint8_t epaddr)
+{
+  USBD_CDC_HandleTypeDef   *hcdc = (USBD_CDC_HandleTypeDef*) pdev->pClassData;
+
+  /* Suspend or Resume USB Out process */
+  if(pdev->pClassData != NULL)
+  {
+    if(pdev->dev_speed == USBD_SPEED_HIGH  )
+    {
+      /* Prepare Out endpoint to receive next packet */
+      USBD_LL_PrepareReceive(pdev,
+                             epaddr,
+                             hcdc->RxBuffer,
+                             CDC_DATA_HS_OUT_PACKET_SIZE);
+    }
+    else
+    {
+      /* Prepare Out endpoint to receive next packet */
+      USBD_LL_PrepareReceive(pdev,
+                             epaddr,
+                             hcdc->RxBuffer,
+                             CDC_DATA_FS_OUT_PACKET_SIZE);
+    }
+    return USBD_OK;
+  }
+  else
+  {
+    return USBD_FAIL;
+  }
+}
+void memoryrelease(uint8_t* ptr, uint8_t size){
+uint8_t i=0;
+
+for(i=0;i<size;i++)
+	ptr[i]=0;
+
+}
+
+void USBD_CDC_Receive(USBD_HandleTypeDef* pusb, uint8_t* ptr, uint8_t epaddr){
+	  USBD_CDC_SetRxBuffer(pusb, ptr);
+	  USBD_CDC_ReceivePacket_EP(pusb, epaddr);
+
+}
+
+void USBD_CDC_Transmit(USBD_HandleTypeDef* pusb, uint8_t* ptr,uint8_t length, uint8_t epaddr){
+	  USBD_CDC_SetTxBuffer(pusb, ptr,length);
+	  USBD_CDC_TransmitPacket_EP(pusb, epaddr);
+
 }
 /* USER CODE END 4 */
 
