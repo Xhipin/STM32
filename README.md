@@ -1,2 +1,2 @@
 # STM32
-ARM Triple CDC
+ARM Double CDC
